@@ -58,9 +58,9 @@ class PConv2D(Conv2D):
             raise Exception('PartialConvolution2D must be called on a list of two tensors [img, mask]. Instead got: ' + str(inputs))
             
         # Apply convolutions to image
-        mask = K.repeat_elements(inputs[1], self.input_dim, axis=3)
+        normalization = K.sum(inputs[1], axis=[1,2], keepdims=True)
         img_output = K.conv2d(
-            inputs[0]*mask, self.kernel, 
+            (inputs[0]*inputs[1]) / normalization , self.kernel, 
             strides=self.strides,
             padding=self.padding,
             data_format=self.data_format,
@@ -76,7 +76,7 @@ class PConv2D(Conv2D):
             dilation_rate=self.dilation_rate
         )
         
-        # Where something happened, set 1, otherwise 0
+        # Where something happened, set 1, otherwise 0        
         mask_output = K.cast(K.greater(mask_output, 0), 'float32')
         
         # Apply bias only to the image (if chosen to do so)
