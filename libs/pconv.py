@@ -1,7 +1,4 @@
 from keras.utils import conv_utils
-from keras.layers import Input, Dense
-from keras.models import Model
-
 from keras import backend as K
 from keras.engine import InputSpec
 from keras.layers import Conv2D
