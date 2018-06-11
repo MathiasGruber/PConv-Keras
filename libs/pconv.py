@@ -32,6 +32,7 @@ class PConv2D(Conv2D):
                                       regularizer=self.kernel_regularizer,
                                       constraint=self.kernel_constraint)
         # Mask kernel
+        self.kernel_mask = K.ones(shape=self.kernel_size + (self.input_dim, self.filters))
         
         if self.use_bias:
             self.bias = self.add_weight(shape=(self.filters,),
