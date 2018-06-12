@@ -59,8 +59,11 @@ class PConv2D(Conv2D):
             
         # Apply convolutions to image
         normalization = K.sum(inputs[1], axis=[1,2], keepdims=True)
+        normalization = K.repeat_elements(normalization, inputs[1].shape[1], axis=1)
+        normalization = K.repeat_elements(normalization, inputs[1].shape[2], axis=2)
+
         img_output = K.conv2d(
-            (inputs[0]*inputs[1]) / normalization , self.kernel, 
+            (inputs[0]*inputs[1]), self.kernel, 
             strides=self.strides,
             padding=self.padding,
             data_format=self.data_format,
@@ -104,9 +107,8 @@ class PConv2D(Conv2D):
                     stride=self.strides[i],
                     dilation=self.dilation_rate[i])
                 new_space.append(new_dim)
-            new_img_shape = (input_shape[0][0],) + tuple(new_space) + (self.filters,)
-            new_mask_shape = (input_shape[0][0],) + tuple(new_space) + (1,)
-            return [new_img_shape, new_mask_shape]
+            new_shape = (input_shape[0][0],) + tuple(new_space) + (self.filters,)
+            return [new_shape, new_shape]
         if self.data_format == 'channels_first':
             space = input_shape[2:]
             new_space = []
@@ -118,6 +120,5 @@ class PConv2D(Conv2D):
                     stride=self.strides[i],
                     dilation=self.dilation_rate[i])
                 new_space.append(new_dim)
-            new_img_shape = (input_shape[0], self.filters) + tuple(new_space)
-            new_mask_shape = (input_shape[0], 1) + tuple(new_space)
-            return [new_img_shape, new_mask_shape]
+            new_shape = (input_shape[0], self.filters) + tuple(new_space)
+            return [new_shape, new_shape]
