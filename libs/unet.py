@@ -156,7 +156,7 @@ class PConvUnet(object):
         b = self.l1(P[:,:,1:,:], P[:,:,:-1,:])        
         return a+b
 
-    def fit(self, generator, epochs=10, test_imgs=None, *args, **kwargs):
+    def fit(self, generator, epochs=10, plot_callback=None, *args, **kwargs):
         """Fit the U-Net to a (images, targets) generator
         
         param generator: training generator yielding (maskes_image, original_image) tuples
@@ -177,20 +177,8 @@ class PConvUnet(object):
             )
             
             # After each epoch predict on test images & show them
-            for test in test_imgs:
-                
-                # Get samples & Display them
-                (mask_img, mask), ori_img = test 
-                pred_img = model.predict([mask_img, mask])
-
-                _, axes = plt.subplots(1, 3, figsize=(20, 5))
-                axes[0].imshow(mask_img[0,:,:,:])
-                axes[1].imshow(pred_img[0,:,:,:])
-                axes[2].imshow(ori_img[0,:,:,:])
-                axes[0].set_title('Masked Image')
-                axes[1].set_title('Predicted Image')
-                axes[2].set_title('Original Image')
-                plt.show()
+            if plot_callback:
+                plot_callback(self.model)
             
     def predict(self, sample):
         return self.model.predict(sample)
