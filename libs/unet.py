@@ -18,13 +18,13 @@ class PConvUnet(object):
         assert self.img_rows >= 512, 'Height must be >512 pixels'
         assert self.img_cols >= 512, 'Width must be >512 pixels'
         
-        # VGG layers to extract features from (first maxpooling layers)
+        # VGG layers to extract features from (first maxpooling layers, see pp. 7 of paper)
         self.vgg_layers = [3, 6, 10]
         
         # Get the vgg16 model for perceptual loss        
         self.vgg = self.build_vgg()
         
-        # Create model
+        # Create UNet-like model
         self.model = self.build_pconv_unet()
         
     def build_vgg(self):
@@ -51,6 +51,8 @@ class PConvUnet(object):
         
     def build_pconv_unet(self):
         print(">> Now creating Partial Conv U-Net Model")        
+
+        # INPUTS
         inputs_img = Input((self.img_rows, self.img_cols, 3))
         inputs_mask = Input((self.img_rows, self.img_cols, 3))
         
@@ -104,7 +106,10 @@ class PConvUnet(object):
         return model
     
     def loss_total(self, mask):
-        """Creates a loss function which sums all the loss components and multiplies by their weights"""
+        """
+        Creates a loss function which sums all the loss components 
+        and multiplies by their weights. See paper eq. 7.
+        """
         def loss(y_true, y_pred):
             
             # Compute predicted image with non-hole pixels set to ground truth
@@ -130,28 +135,39 @@ class PConvUnet(object):
     
     
     def loss_hole(self, mask, y_true, y_pred):
+        """Pixel L1 loss within the hole / mask"""
         return self.l1((1-mask) * y_true, (1-mask) * y_pred)
     
     def loss_valid(self, mask, y_true, y_pred):
+        """Pixel L1 loss outside the hole / mask"""
         return self.l1(mask * y_true, mask * y_pred)
     
-    def loss_perceptual(self, vgg_out, vgg_gt, vgg_comp):        
+    def loss_perceptual(self, vgg_out, vgg_gt, vgg_comp): 
+        """Perceptual loss based on VGG16, see. eq. 3 in paper"""       
         loss = 0
         for o, c, g in zip(vgg_out, vgg_comp, vgg_gt):
             loss += self.l1(o, g) + self.l1(c, g)
         return loss
         
     def loss_style(self, output, vgg_gt):
+        """Style loss based on output/computation, used for both eq. 4 & 5 in paper"""
         loss = 0
         for o, g in zip(output, vgg_gt):
             loss += self.l1(self.gram_matrix(o), self.gram_matrix(g))
         return loss
     
     def loss_tv(self, mask, y_comp):
+        """Total variation loss, used for smoothing the hole region, see. eq. 6"""
+
+        # Create dilated hole region using a 3x3 kernel of all 1s.
         kernel = K.ones(shape=(3, 3, mask.shape[3], mask.shape[3]))
         dilated_mask = K.conv2d(1-mask, kernel, data_format='channels_last', padding='same')
+
+        # Cast values to be [0., 1.], and compute dilated hole region of y_comp
         dilated_mask = K.cast(K.greater(dilated_mask, 0), 'float32')
         P = dilated_mask * y_comp
+
+        # Calculate total variation loss
         a = self.l1(P[:,1:,:,:], P[:,:-1,:,:])
         b = self.l1(P[:,:,1:,:], P[:,:,:-1,:])        
         return a+b
@@ -161,7 +177,7 @@ class PConvUnet(object):
         
         param generator: training generator yielding (maskes_image, original_image) tuples
         param epochs: number of epochs to train for
-        param test_imgs: list of (masked_img, original_img) tuples to test each epoch
+        param plot_callback: callback function taking Unet model as parameter
         """
         
         # Loop over epochs
@@ -181,13 +197,16 @@ class PConvUnet(object):
                 plot_callback(self.model)
             
     def predict(self, sample):
+        """Run prediction using this model"""
         return self.model.predict(sample)
 
     def summary(self):
+        """Get summary of the UNet model"""
         print(self.model.summary())
     
     @staticmethod
     def l1(y_true, y_pred):
+        """Calculate the L1 loss used in all loss calculations"""
         if K.ndim(y_true) == 4:
             return K.sum(K.abs(y_pred - y_true), axis=[1,2,3])
         elif K.ndim(y_true) == 3:
@@ -197,6 +216,7 @@ class PConvUnet(object):
     
     @staticmethod
     def gram_matrix(x, norm_by_channels=False):
+        """Calculate gram matrix used in style loss"""
         
         # Assertions on input
         assert K.ndim(x) == 4, 'Input tensor should be a 4d (B, H, W, C) tensor'
