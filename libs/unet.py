@@ -1,4 +1,8 @@
+import os
+from datetime import datetime
+
 from keras.models import Model
+from keras.models import load_model
 from keras.optimizers import Adam
 from keras.layers import Input, Conv2D, UpSampling2D, Dropout, LeakyReLU, BatchNormalization, Activation
 from keras.layers.merge import Concatenate
@@ -9,14 +13,18 @@ from pconv import PConv2D
 
 class PConvUnet(object):
 
-    def __init__(self, img_rows=512, img_cols=512):
+    def __init__(self, img_rows=512, img_cols=512, weight_filepath=None):
         """Create the PConvUnet. If variable image size, set img_rows and img_cols to None"""
         
         # Settings
+        self.weight_filepath = weight_filepath
         self.img_rows = img_rows
         self.img_cols = img_cols
         assert self.img_rows >= 512, 'Height must be >512 pixels'
         assert self.img_cols >= 512, 'Width must be >512 pixels'
+
+        # Set current epoch
+        self.current_epoch = 0
         
         # VGG layers to extract features from (first maxpooling layers, see pp. 7 of paper)
         self.vgg_layers = [3, 6, 10]
@@ -181,20 +189,26 @@ class PConvUnet(object):
         """
         
         # Loop over epochs
-        for i in range(epochs):
-            print(f">> Fitting epoch {i+1}")
+        for _ in range(epochs):            
             
             # Fit the model
             self.model.fit_generator(
                 generator,
-                epochs=i+1,
-                initial_epoch=i,
+                epochs=self.current_epoch+1,
+                initial_epoch=self.current_epoch,
                 *args, **kwargs
             )
+
+            # Update epoch 
+            self.current_epoch += 1
             
             # After each epoch predict on test images & show them
             if plot_callback:
                 plot_callback(self.model)
+
+            # Save logfile
+            if self.weight_filepath:
+                self.save()
             
     def predict(self, sample):
         """Run prediction using this model"""
@@ -203,6 +217,23 @@ class PConvUnet(object):
     def summary(self):
         """Get summary of the UNet model"""
         print(self.model.summary())
+
+    def save(self):        
+        self.model.save_weights(self.current_weightfile())
+
+    def load(self, filepath):
+        epoch = int(os.path.basename(filepath).split("_")[0])
+        assert epoch > 0, "Could not parse weight file. Should start with 'X_', with X being the epoch"
+        self.current_epoch = epoch
+        self.model.load_weights(filepath)
+
+    def current_weightfile(self):
+        assert self.weight_filepath != None, 'Must specify location of logs'
+        return self.weight_filepath + "{}_weights_{}.h5".format(self.current_epoch, self.current_timestamp())
+
+    @staticmethod
+    def current_timestamp():
+        return datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     
     @staticmethod
     def l1(y_true, y_pred):
