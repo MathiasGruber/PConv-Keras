@@ -21,6 +21,10 @@ The best summary of the implementation itself can be found in the [paper itself]
 In the paper they use a technique based on occlusion/dis-occlusion between two consecutive frames in videos for creating random irregular masks - instead I've opted for simply creating a simple mask-generator function which uses OpenCV to draw some random irregular shapes which I then use for masks. Plugging in a new mask generation technique later should not be a problem though, and I think the end results are pretty decent using this method as well.
 
 ## Partial Convolution Layer
+A key element in this implementation is the partial convolutional layer. Basically, given the convolutional filter **W** and the corresponding bias *b*, the following partial convolution is applied instead of a normal convolution:
+
+
+
 NotImplementedError()
 
 ## UNet Architecture
