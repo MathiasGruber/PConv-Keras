@@ -23,9 +23,13 @@ In the paper they use a technique based on occlusion/dis-occlusion between two c
 ## Partial Convolution Layer
 A key element in this implementation is the partial convolutional layer. Basically, given the convolutional filter **W** and the corresponding bias *b*, the following partial convolution is applied instead of a normal convolution:
 
+<img src='./data/images/eq1.PNG' />
 
+where ⊙ is element-wise multiplication and **M** is a binary mask of 0s and 1s. Importantly, after each partial convolution, the mask is also updated, so that if the convolution was able to condition its output on at least one valid input, then the mask is removed at that location, i.e.
 
-NotImplementedError()
+<img src='./data/images/eq2.PNG' />
+
+The result of this is that with a sufficiently deep network, the mask will eventually be all ones (i.e. disappear)
 
 ## UNet Architecture
 NotImplementedError()
