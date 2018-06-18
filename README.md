@@ -1,4 +1,4 @@
-# Keras-Inpainting
+# Partial Convolutions for Image Inpainting using Keras
 Keras implementation of "Image Inpainting for Irregular Holes Using Partial Convolutions", https://arxiv.org/abs/1804.07723. A huge shoutout the authors Guilin Liu, Fitsum A. Reda, Kevin J. Shih, Ting-Chun Wang, Andrew Tao and Bryan Catanzaro from NVIDIA corporation for releasing this awesome paper, it's been a great learning experience for me to implement the architecture, and it would not have been possible had it not been for their well communicated paper. 
 
 # Dependencies
@@ -35,7 +35,15 @@ The result of this is that with a sufficiently deep network, the mask will event
 NotImplementedError()
 
 ## Loss Function(s)
-NotImplementedError()
+The loss function used in the paper is kinda intense, and can be reviewed in the paper. In short it includes:
+
+* Per-pixel losses both for maskes and un-masked regions
+* Perceptual loss based on ImageNet pre-trained VGG-16 (*pool1, pool2 and pool3 layers*)
+* Style loss on VGG-16 features both for predicted image and for computed image (non-hole pixel set to ground truth)
+* Total variation loss for a 1-pixel dilation of the hole region
+
+The weighting of all these loss terms are as follows:
+<img src='./data/images/eq7.PNG' />
 
 ## Training Procedure
 NotImplementedError()
