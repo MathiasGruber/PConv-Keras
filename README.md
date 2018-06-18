@@ -46,4 +46,12 @@ The weighting of all these loss terms are as follows:
 <img src='./data/images/eq7.PNG' />
 
 ## Training Procedure
-NotImplementedError()
+Network was trained on ImageNet with a batch size of 1, and each epoch was specified to be 10,000 batches long. Training was furthermore performed using the Adam optimizer in two stages since batch normalization presents an issue for the masked convolutions (since mean and variance is calculated for hole pixels).
+
+**Stage 1**
+Learning rate of 0.0001 for 50 epochs with batch normalization enabled in all layers
+
+**Stage 2**
+Learning rate of 0.00005 for 50 epochs where batch normalization in all encoding layers is disabled.
+
+Training time for shown images was absolutely crazy long, but that is likely because of my poor personal setup (GeForce GTX 970). The few tests I've tried on a 1080Ti (with batch size of 4) indicates that training time could be around 10 days, as specified in the paper.
