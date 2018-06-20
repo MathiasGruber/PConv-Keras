@@ -32,7 +32,8 @@ where ⊙ is element-wise multiplication and **M** is a binary mask of 0s and 1s
 The result of this is that with a sufficiently deep network, the mask will eventually be all ones (i.e. disappear)
 
 ## UNet Architecture
-NotImplementedError()
+Specific details of the architecture can be found in the paper, but essentially it's based on a UNet-like structure, where all normal convolutional layers are replace with partial convolutional layers, such that in all cases the image is passed through the network alongside the mask. The following provides an overview of the architecture.
+<img src='./data/images/architecture.png' />
 
 ## Loss Function(s)
 The loss function used in the paper is kinda intense, and can be reviewed in the paper. In short it includes:
