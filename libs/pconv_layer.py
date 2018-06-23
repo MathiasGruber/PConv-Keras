@@ -1,3 +1,4 @@
+
 from keras.utils import conv_utils
 from keras import backend as K
 from keras.engine import InputSpec
@@ -61,7 +62,9 @@ class PConv2D(Conv2D):
         normalization = K.sum(inputs[1], axis=[1,2], keepdims=True)
         normalization = K.repeat_elements(normalization, inputs[1].shape[1], axis=1)
         normalization = K.repeat_elements(normalization, inputs[1].shape[2], axis=2)
+        K.print_tensor(normalization, message = "Normalizaiton is: ")
 
+        # / normalization
         img_output = K.conv2d(
             (inputs[0]*inputs[1]), self.kernel, 
             strides=self.strides,

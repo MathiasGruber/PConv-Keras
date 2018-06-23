@@ -105,3 +105,4 @@ venv.bak/
 
 test_samples*
 logs*
+backup*

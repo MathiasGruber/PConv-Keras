@@ -8,7 +8,7 @@ from keras.layers import Input, Conv2D, UpSampling2D, Dropout, LeakyReLU, BatchN
 from keras.layers.merge import Concatenate
 from keras.applications import VGG16
 from keras import backend as K
-from pconv import PConv2D
+from libs.pconv_layer import PConv2D
 
 
 class PConvUnet(object):
@@ -20,8 +20,8 @@ class PConvUnet(object):
         self.weight_filepath = weight_filepath
         self.img_rows = img_rows
         self.img_cols = img_cols
-        assert self.img_rows >= 512, 'Height must be >512 pixels'
-        assert self.img_cols >= 512, 'Width must be >512 pixels'
+        assert self.img_rows >= 256, 'Height must be >256 pixels'
+        assert self.img_cols >= 256, 'Width must be >256 pixels'
 
         # Set current epoch
         self.current_epoch = 0
@@ -57,8 +57,7 @@ class PConvUnet(object):
         
         return model
         
-    def build_pconv_unet(self):
-        print(">> Now creating Partial Conv U-Net Model")        
+    def build_pconv_unet(self, train_bn=True, lr=0.0002):      
 
         # INPUTS
         inputs_img = Input((self.img_rows, self.img_cols, 3))
@@ -68,9 +67,11 @@ class PConvUnet(object):
         def encoder_layer(img_in, mask_in, filters, kernel_size, bn=True):
             conv, mask = PConv2D(filters, kernel_size, strides=2, padding='same')([img_in, mask_in])
             if bn:
-                conv = BatchNormalization()(conv)
+                conv = BatchNormalization(name='EncBN'+str(encoder_layer.counter))(conv, training=train_bn)
             conv = Activation('relu')(conv)
+            encoder_layer.counter += 1
             return conv, mask
+        encoder_layer.counter = 0
         
         e_conv1, e_mask1 = encoder_layer(inputs_img, inputs_mask, 64, 7, bn=False)
         e_conv2, e_mask2 = encoder_layer(e_conv1, e_mask1, 128, 5)
@@ -84,7 +85,6 @@ class PConvUnet(object):
         # DECODER
         def decoder_layer(img_in, mask_in, e_conv, e_mask, filters, kernel_size, bn=True):
             up_img = UpSampling2D(size=(2,2))(img_in)
-            up_img = LeakyReLU(alpha=0.2)(up_img)
             up_mask = UpSampling2D(size=(2,2))(mask_in)
             concat_img = Concatenate(axis=3)([e_conv,up_img])
             concat_mask = Concatenate(axis=3)([e_mask,up_mask])
@@ -102,12 +102,14 @@ class PConvUnet(object):
         d_conv14, d_mask14 = decoder_layer(d_conv13, d_mask13, e_conv2, e_mask2, 128, 3)
         d_conv15, d_mask15 = decoder_layer(d_conv14, d_mask14, e_conv1, e_mask1, 64, 3)
         d_conv16, d_mask16 = decoder_layer(d_conv15, d_mask15, inputs_img, inputs_mask, 3, 3, bn=False)
-        outputs = Conv2D(3, 1, activation = 'sigmoid')(d_conv16)
+        outputs = Conv2D(3, 1, activation = 'sigmoid')(d_conv16)        
         
-        # Compile the model
+        # Setup the model inputs / outputs
         model = Model(inputs=[inputs_img, inputs_mask], outputs=outputs)
+
+        # Compile the model
         model.compile(
-            optimizer = Adam(lr = 1e-4),
+            optimizer = Adam(lr=lr),
             loss=self.loss_total(inputs_mask)
         )
 
@@ -140,7 +142,6 @@ class PConvUnet(object):
             return l1 + 6*l2 + 0.05*l3 + 120*(l4+l5) + 0.1*l6
 
         return loss
-    
     
     def loss_hole(self, mask, y_true, y_pred):
         """Pixel L1 loss within the hole / mask"""
@@ -221,11 +222,16 @@ class PConvUnet(object):
     def save(self):        
         self.model.save_weights(self.current_weightfile())
 
-    def load(self, filepath):
+    def load(self, filepath, train_bn=True, lr=0.0002):
+
+        # Create UNet-like model
+        self.model = self.build_pconv_unet(train_bn, lr)
+
+        # Load weights into model
         epoch = int(os.path.basename(filepath).split("_")[0])
         assert epoch > 0, "Could not parse weight file. Should start with 'X_', with X being the epoch"
         self.current_epoch = epoch
-        self.model.load_weights(filepath)
+        self.model.load_weights(filepath)        
 
     def current_weightfile(self):
         assert self.weight_filepath != None, 'Must specify location of logs'
