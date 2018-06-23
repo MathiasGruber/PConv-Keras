@@ -58,15 +58,14 @@ class PConv2D(Conv2D):
         if type(inputs) is not list or len(inputs) != 2:
             raise Exception('PartialConvolution2D must be called on a list of two tensors [img, mask]. Instead got: ' + str(inputs))
             
-        # Apply convolutions to image
-        normalization = K.sum(inputs[1], axis=[1,2], keepdims=True)
+        # Create normalization. Slight change here compared to paper, using mean mask value instead of sum
+        normalization = K.mean(inputs[1], axis=[1,2], keepdims=True)
         normalization = K.repeat_elements(normalization, inputs[1].shape[1], axis=1)
         normalization = K.repeat_elements(normalization, inputs[1].shape[2], axis=2)
-        K.print_tensor(normalization, message = "Normalizaiton is: ")
 
-        # / normalization
+        # Apply convolutions to image
         img_output = K.conv2d(
-            (inputs[0]*inputs[1]), self.kernel, 
+            (inputs[0]*inputs[1]) / normalization, self.kernel, 
             strides=self.strides,
             padding=self.padding,
             data_format=self.data_format,
