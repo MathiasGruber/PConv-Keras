@@ -11,9 +11,9 @@ Keras implementation of "*Image Inpainting for Irregular Holes Using Partial Con
 # How to use this repository
 The primary implementations of the new `PConv2D` keras layer as well as the `UNet`-like architecture using these partial convolutional layers can be found in `libs/pconv_layer.py` and `libs/pconv_model.py`, respectively - this is where the bulk of the implementation can be found. Beyond this I've set up four jupyter notebooks, which details the several steps I went through while implementing the network, namely:
 
-Step 1: Creating random irregular masks
-Step 2: Implementing and testing the implementation of the `PConv2D` layer
-Step 3: Implementing and testing the UNet architecture with `PConv2D` layers
+Step 1: Creating random irregular masks<br />
+Step 2: Implementing and testing the implementation of the `PConv2D` layer<br />
+Step 3: Implementing and testing the UNet architecture with `PConv2D` layers<br />
 Step 4: Training & testing the final architecture on ImageNet
 
 # Implementation details
