@@ -57,4 +57,4 @@ Learning rate of 0.0001 for 50 epochs with batch normalization enabled in all la
 **Stage 2**
 Learning rate of 0.00005 for 50 epochs where batch normalization in all encoding layers is disabled.
 
-Training time for shown images was absolutely crazy long, but that is likely because of my poor personal setup (GeForce GTX 970). The few tests I've tried on a 1080Ti (with batch size of 4) indicates that training time could be around 10 days, as specified in the paper.
+Training time for shown images was absolutely crazy long, but that is likely because of my poor personal setup. The few tests I've tried on a 1080Ti (with batch size of 4) indicates that training time could be around 10 days, as specified in the paper.
