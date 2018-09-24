@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from datetime import datetime
 
 from keras.models import Model
@@ -20,6 +21,7 @@ class PConvUnet(object):
         self.weight_filepath = weight_filepath
         self.img_rows = img_rows
         self.img_cols = img_cols
+        self.img_overlap = 30
         assert self.img_rows >= 256, 'Height must be >256 pixels'
         assert self.img_cols >= 256, 'Width must be >256 pixels'
 
@@ -209,11 +211,7 @@ class PConvUnet(object):
 
             # Save logfile
             if self.weight_filepath:
-                self.save()
-            
-    def predict(self, sample):
-        """Run prediction using this model"""
-        return self.model.predict(sample)
+                self.save()    
 
     def summary(self):
         """Get summary of the UNet model"""
@@ -272,3 +270,111 @@ class PConvUnet(object):
         gram = gram /  K.cast(C * H * W, x.dtype)
         
         return gram
+    
+    # Prediction functions
+    ######################
+    def predict(self, sample):
+        """Run prediction using this model"""
+        return self.model.predict(sample)
+    
+    def perform_chunking(self, img_size, chunk_size):
+        """
+        Given an image dimension img_size, return list of (start, stop) 
+        tuples to perform chunking of chunk_size
+        """
+        n_count = int(img_size / (chunk_size - self.img_overlap)) + 1        
+        chunks = [(i*(chunk_size - self.img_overlap/2), i*(chunk_size - self.img_overlap/2)+chunk_size) for i in range(n_count)]
+        chunks[-1] = tuple(x - (n_count*chunk_size - img_size - (n_count-1)*self.img_overlap/2) for x in chunks[-1])
+        chunks = [(int(x), int(y)) for x, y in chunks]
+        return chunks
+    
+    def get_chunks(self, img):
+        """Get width and height lists of (start, stop) tuples for chunking of img"""
+        x_chunks, y_chunks = [(0, 512)], [(0, 512)]        
+        if img.shape[0] > self.img_rows:
+            x_chunks = self.perform_chunking(img.shape[0], self.img_rows)
+        if img.shape[1] > self.img_cols:
+            y_chunks = self.perform_chunking(img.shape[1], self.img_cols)
+        return x_chunks, y_chunks    
+    
+    def dimension_preprocess(self, img):
+        """
+        In case of prediction on image of different size than 512x512,
+        this function is used to add padding and chunk up the image into pieces
+        of 512x512, which can then later be reconstructed into the original image
+        using the dimension_postprocess() function.
+        """
+
+        # Assert single image input
+        assert len(img.shape) == 3, "Image dimension expected to be (H, W, C)"
+
+        # Check if height is too small
+        if img.shape[0] < self.img_rows:
+            padding = np.ones((self.img_rows - img.shape[0], img.shape[1], img.shape[2]))
+            img = np.concatenate((img, padding), axis=0)
+
+        # Check if width is too small
+        if img.shape[1] < self.img_cols:
+            padding = np.ones((img.shape[0], self.img_cols - img.shape[1], img.shape[2]))
+            img = np.concatenate((img, padding), axis=1)
+
+        # Get chunking of the image
+        x_chunks, y_chunks = self.get_chunks(img)
+
+        # Chunk up the image
+        images = []
+        for x in x_chunks:
+            for y in y_chunks:
+                images.append(
+                    img[x[0]:x[1], y[0]:y[1], :]
+                )
+        images = np.array(images)        
+        return images
+
+    def dimension_postprocess(self, chunked_images, original_image):
+        """
+        In case of prediction on image of different size than 512x512,
+        the dimension_preprocess  function is used to add padding and chunk 
+        up the image into pieces of 512x512, and this function is used to 
+        reconstruct these pieces into the original image.
+        """
+
+        # Assert input dimensions
+        assert len(original_image.shape) == 3, "Image dimension expected to be (H, W, C)"
+        assert len(chunked_images.shape) == 4, "Chunked images dimension expected to be (B, H, W, C)"
+
+        # Check if height is too small
+        if original_image.shape[0] < self.img_rows:
+            new_images = []
+            for img in chunked_images:
+                new_images.append(img[0:original_image.shape[0], :, :])
+            chunked_images = np.array(new_images)
+            
+        # Check if width is too small
+        if original_image.shape[1] < self.img_cols:
+            new_images = []
+            for img in chunked_images:
+                new_images.append(img[:, 0:original_image.shape[1], :])
+            chunked_images = np.array(new_images)
+            
+        # Put reconstruction into this array
+        reconstruction = np.zeros(original_image.shape)
+            
+        # Get the chunks for this image    
+        x_chunks, y_chunks = self.get_chunks(original_image)
+        i = 0
+        for x in x_chunks:
+            for y in y_chunks:
+                
+                prior_fill = reconstruction != 0
+                
+                chunk = np.zeros(original_image.shape)                
+                chunk[x[0]:x[1], y[0]:y[1], :] += chunked_images[i]
+                chunk_fill = chunk != 0
+                
+                reconstruction += chunk
+                reconstruction[prior_fill & chunk_fill] = reconstruction[prior_fill & chunk_fill] / 2
+
+                i += 1
+        
+        return reconstruction
