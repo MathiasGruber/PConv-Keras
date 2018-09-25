@@ -277,6 +277,24 @@ class PConvUnet(object):
         """Run prediction using this model"""
         return self.model.predict(sample)
     
+    def scan_predict(self, sample):
+        """Run prediction on arbitrary image sizes"""
+        
+        # Only run on a single image at a time
+        img = sample[0]
+        mask = sample[1]
+        assert len(img.shape) == 3, "Image dimension expected to be (H, W, C)"
+        assert len(mask.shape) == 3, "Image dimension expected to be (H, W, C)"
+        
+        # Chunk up, run prediction, and reconstruct
+        chunked_images = self.dimension_preprocess(img)
+        chunked_masks = self.dimension_preprocess(mask)
+        pred_imgs = self.predict([chunked_images, chunked_masks])
+        reconstructed_image = self.dimension_postprocess(pred_imgs, img)
+        
+        # Return single reconstructed image
+        return reconstructed_image    
+    
     def perform_chunking(self, img_size, chunk_size):
         """
         Given an image dimension img_size, return list of (start, stop) 
