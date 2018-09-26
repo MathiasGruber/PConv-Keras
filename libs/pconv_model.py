@@ -273,11 +273,11 @@ class PConvUnet(object):
     
     # Prediction functions
     ######################
-    def predict(self, sample, batch_size=4):
+    def predict(self, sample, **kwargs):
         """Run prediction using this model"""
-        return self.model.predict(sample, batch_size=batch_size)
+        return self.model.predict(sample, **kwargs)
     
-    def scan_predict(self, sample):
+    def scan_predict(self, sample, **kwargs):
         """Run prediction on arbitrary image sizes"""
         
         # Only run on a single image at a time
@@ -289,7 +289,7 @@ class PConvUnet(object):
         # Chunk up, run prediction, and reconstruct
         chunked_images = self.dimension_preprocess(img)
         chunked_masks = self.dimension_preprocess(mask)
-        pred_imgs = self.predict([chunked_images, chunked_masks], batch_size=1)
+        pred_imgs = self.predict([chunked_images, chunked_masks], **kwargs)
         reconstructed_image = self.dimension_postprocess(pred_imgs, img)
         
         # Return single reconstructed image
