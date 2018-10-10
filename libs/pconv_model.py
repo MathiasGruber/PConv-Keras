@@ -14,7 +14,7 @@ from libs.pconv_layer import PConv2D
 
 class PConvUnet(object):
 
-    def __init__(self, img_rows=512, img_cols=512, weight_filepath=None):
+    def __init__(self, img_rows=512, img_cols=512, weight_filepath=None, vgg_weights_filepath="imagenet"):
         """Create the PConvUnet. If variable image size, set img_rows and img_cols to None"""
         
         # Settings
@@ -32,12 +32,12 @@ class PConvUnet(object):
         self.vgg_layers = [3, 6, 10]
         
         # Get the vgg16 model for perceptual loss        
-        self.vgg = self.build_vgg()
+        self.vgg = self.build_vgg(vgg_weights_filepath)
         
         # Create UNet-like model
         self.model = self.build_pconv_unet()
         
-    def build_vgg(self):
+    def build_vgg(self, weights="imagenet"):
         """
         Load pre-trained VGG16 from keras applications
         Extract features to be used in loss function from last conv layer, see architecture at:
@@ -45,9 +45,13 @@ class PConvUnet(object):
         """
         # Input image to extract features from
         img = Input(shape=(self.img_rows, self.img_cols, 3))
-
+                
         # Get the vgg network from Keras applications
-        vgg = VGG16(weights="imagenet", include_top=False)
+        if weights == 'imagenet':
+            vgg = VGG16(weights=weights, include_top=False)
+        else:
+            vgg = VGG16(weights=None, include_top=False)
+            vgg.load_weights(weights)
 
         # Output the first three pooling layers
         vgg.outputs = [vgg.layers[i].output for i in self.vgg_layers]
