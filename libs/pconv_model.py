@@ -14,7 +14,7 @@ from libs.pconv_layer import PConv2D
 
 class PConvUnet(object):
 
-    def __init__(self, img_rows=512, img_cols=512, weight_filepath=None, vgg_weights_filepath="imagenet"):
+    def __init__(self, img_rows=512, img_cols=512, weight_filepath=None, vgg_weights="imagenet"):
         """Create the PConvUnet. If variable image size, set img_rows and img_cols to None"""
         
         # Settings
@@ -32,7 +32,7 @@ class PConvUnet(object):
         self.vgg_layers = [3, 6, 10]
         
         # Get the vgg16 model for perceptual loss        
-        self.vgg = self.build_vgg(vgg_weights_filepath)
+        self.vgg = self.build_vgg(vgg_weights)
         
         # Create UNet-like model
         self.model = self.build_pconv_unet()
@@ -47,7 +47,8 @@ class PConvUnet(object):
         img = Input(shape=(self.img_rows, self.img_cols, 3))
                 
         # Get the vgg network from Keras applications
-        if weights == 'imagenet':
+        if weights in ['imagenet', None]:
+            print(weights)
             vgg = VGG16(weights=weights, include_top=False)
         else:
             vgg = VGG16(weights=None, include_top=False)
