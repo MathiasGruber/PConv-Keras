@@ -304,8 +304,13 @@ class PConvUnet(object):
         Given an image dimension img_size, return list of (start, stop) 
         tuples to perform chunking of chunk_size
         """
-        n_count = int(img_size / (chunk_size - self.img_overlap)) + 1        
-        chunks = [(i*(chunk_size - self.img_overlap/2), i*(chunk_size - self.img_overlap/2)+chunk_size) for i in range(n_count)]
+        chunks, i = [], 0
+        while True:
+            chunks.append((i*(chunk_size - self.img_overlap/2), i*(chunk_size - self.img_overlap/2)+chunk_size))
+            i+=1
+            if chunks[-1][1] > img_size:
+                break
+        n_count = len(chunks)        
         chunks[-1] = tuple(x - (n_count*chunk_size - img_size - (n_count-1)*self.img_overlap/2) for x in chunks[-1])
         chunks = [(int(x), int(y)) for x, y in chunks]
         return chunks
