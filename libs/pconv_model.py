@@ -14,7 +14,7 @@ from libs.pconv_layer import PConv2D
 
 class PConvUnet(object):
 
-    def __init__(self, img_rows=512, img_cols=512, weight_filepath=None, vgg_weights="imagenet"):
+    def __init__(self, img_rows=512, img_cols=512, weight_filepath=None, vgg_weights="imagenet", inference_only=False):
         """Create the PConvUnet. If variable image size, set img_rows and img_cols to None"""
         
         # Settings
@@ -22,6 +22,9 @@ class PConvUnet(object):
         self.img_rows = img_rows
         self.img_cols = img_cols
         self.img_overlap = 30
+        self.inference_only = inference_only
+        
+        # Assertions
         assert self.img_rows >= 256, 'Height must be >256 pixels'
         assert self.img_cols >= 256, 'Width must be >256 pixels'
 
@@ -31,7 +34,7 @@ class PConvUnet(object):
         # VGG layers to extract features from (first maxpooling layers, see pp. 7 of paper)
         self.vgg_layers = [3, 6, 10]
         
-        # Get the vgg16 model for perceptual loss        
+        # Get the vgg16 model for perceptual loss
         self.vgg = self.build_vgg(vgg_weights)
         
         # Create UNet-like model
@@ -42,13 +45,20 @@ class PConvUnet(object):
         Load pre-trained VGG16 from keras applications
         Extract features to be used in loss function from last conv layer, see architecture at:
         https://github.com/keras-team/keras/blob/master/keras/applications/vgg16.py
-        """
+        """        
+            
         # Input image to extract features from
         img = Input(shape=(self.img_rows, self.img_cols, 3))
+        
+        # If inference only, just return empty model        
+        if self.inference_only:
+            model = Model(inputs=img, outputs=[img for _ in range(len(self.vgg_layers))])
+            model.trainable = False
+            model.compile(loss='mse', optimizer='adam')
+            return model
                 
         # Get the vgg network from Keras applications
         if weights in ['imagenet', None]:
-            print(weights)
             vgg = VGG16(weights=weights, include_top=False)
         else:
             vgg = VGG16(weights=None, include_top=False)
@@ -67,8 +77,8 @@ class PConvUnet(object):
     def build_pconv_unet(self, train_bn=True, lr=0.0002):      
 
         # INPUTS
-        inputs_img = Input((self.img_rows, self.img_cols, 3))
-        inputs_mask = Input((self.img_rows, self.img_cols, 3))
+        inputs_img = Input((self.img_rows, self.img_cols, 3), name='inputs_img')
+        inputs_mask = Input((self.img_rows, self.img_cols, 3), name='inputs_mask')
         
         # ENCODER
         def encoder_layer(img_in, mask_in, filters, kernel_size, bn=True):
@@ -109,7 +119,7 @@ class PConvUnet(object):
         d_conv14, d_mask14 = decoder_layer(d_conv13, d_mask13, e_conv2, e_mask2, 128, 3)
         d_conv15, d_mask15 = decoder_layer(d_conv14, d_mask14, e_conv1, e_mask1, 64, 3)
         d_conv16, d_mask16 = decoder_layer(d_conv15, d_mask15, inputs_img, inputs_mask, 3, 3, bn=False)
-        outputs = Conv2D(3, 1, activation = 'sigmoid')(d_conv16)        
+        outputs = Conv2D(3, 1, activation = 'sigmoid', name='outputs_img')(d_conv16)        
         
         # Setup the model inputs / outputs
         model = Model(inputs=[inputs_img, inputs_mask], outputs=outputs)
@@ -133,7 +143,7 @@ class PConvUnet(object):
             y_comp = mask * y_true + (1-mask) * y_pred
             
             # Compute the vgg features
-            vgg_out = self.vgg(y_pred)
+            vgg_out = self.vgg(y_pred)            
             vgg_gt = self.vgg(y_true)
             vgg_comp = self.vgg(y_comp)
             
