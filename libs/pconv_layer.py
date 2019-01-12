@@ -66,15 +66,7 @@ class PConv2D(Conv2D):
         # Both image and mask must be supplied
         if type(inputs) is not list or len(inputs) != 2:
             raise Exception('PartialConvolution2D must be called on a list of two tensors [img, mask]. Instead got: ' + str(inputs))
-            
-        # Create normalization. Slight change here compared to paper, using mean mask value instead of sum
-        normalization = K.mean(inputs[1], axis=[1,2], keepdims=True)
-        normalization = K.repeat_elements(normalization, inputs[1].shape[1], axis=1)
-        normalization = K.repeat_elements(normalization, inputs[1].shape[2], axis=2)
 
-        # Apply convolutions to image
-        img_output = K.conv2d(
-            (inputs[0]*inputs[1]) / normalization, self.kernel, 
         # Padding done explicitly so that padding becomes part of the masked partial convolution
         images = K.spatial_2d_padding(inputs[0], self.pconv_padding, self.data_format)
         masks = K.spatial_2d_padding(inputs[1], self.pconv_padding, self.data_format)
@@ -95,15 +87,27 @@ class PConv2D(Conv2D):
             padding='valid',
             data_format=self.data_format,
             dilation_rate=self.dilation_rate
+        )        
+
+        # Calculate the mask ratio on each pixel in the output mask
+        mask_ratio = self.window_size / (mask_output + 1e-8)
+
         # Clip output to be between 0 and 1
         mask_output = K.clip(mask_output, 0, 1)
+
+        # Remove ratio values where there are holes
+        mask_ratio = mask_ratio * mask_output
+
+        # Normalize iamge output
+        img_output = img_output * mask_ratio
+
         # Apply bias only to the image (if chosen to do so)
         if self.use_bias:
             img_output = K.bias_add(
                 img_output,
                 self.bias,
                 data_format=self.data_format)
-                
+        
         # Apply activations on the image
         if self.activation is not None:
             img_output = self.activation(img_output)
