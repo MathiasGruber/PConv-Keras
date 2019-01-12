@@ -34,6 +34,15 @@ class PConv2D(Conv2D):
                                       constraint=self.kernel_constraint)
         # Mask kernel
         self.kernel_mask = K.ones(shape=self.kernel_size + (self.input_dim, self.filters))
+
+        # Calculate padding size to achieve zero-padding
+        self.pconv_padding = (
+            (int((self.kernel_size[0]-1)/2), int((self.kernel_size[0]-1)/2)), 
+            (int((self.kernel_size[0]-1)/2), int((self.kernel_size[0]-1)/2)), 
+        )
+
+        # Window size - used for normalization
+        self.window_size = self.kernel_size[0] * self.kernel_size[1]
         
         if self.use_bias:
             self.bias = self.add_weight(shape=(self.filters,),
