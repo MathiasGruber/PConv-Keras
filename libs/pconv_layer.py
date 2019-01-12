@@ -66,17 +66,24 @@ class PConv2D(Conv2D):
         # Apply convolutions to image
         img_output = K.conv2d(
             (inputs[0]*inputs[1]) / normalization, self.kernel, 
+        # Padding done explicitly so that padding becomes part of the masked partial convolution
+        images = K.spatial_2d_padding(inputs[0], self.pconv_padding, self.data_format)
+        masks = K.spatial_2d_padding(inputs[1], self.pconv_padding, self.data_format)
+
+        # Apply convolutions to mask
+        mask_output = K.conv2d(
+            masks, self.kernel_mask, 
             strides=self.strides,
-            padding=self.padding,
+            padding='valid',
             data_format=self.data_format,
             dilation_rate=self.dilation_rate
         )
-        
-        # Apply convolutions to mask
-        mask_output = K.conv2d(
-            inputs[1], self.kernel_mask, 
+
+        # Apply convolutions to image
+        img_output = K.conv2d(
+            (images*masks), self.kernel, 
             strides=self.strides,
-            padding=self.padding,            
+            padding='valid',
             data_format=self.data_format,
             dilation_rate=self.dilation_rate
         )
@@ -105,7 +112,7 @@ class PConv2D(Conv2D):
                 new_dim = conv_utils.conv_output_length(
                     space[i],
                     self.kernel_size[i],
-                    padding=self.padding,
+                    padding='same',
                     stride=self.strides[i],
                     dilation=self.dilation_rate[i])
                 new_space.append(new_dim)
@@ -118,7 +125,7 @@ class PConv2D(Conv2D):
                 new_dim = conv_utils.conv_output_length(
                     space[i],
                     self.kernel_size[i],
-                    padding=self.padding,
+                    padding='same',
                     stride=self.strides[i],
                     dilation=self.dilation_rate[i])
                 new_space.append(new_dim)
