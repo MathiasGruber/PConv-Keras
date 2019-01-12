@@ -60,9 +60,9 @@ class PConv2D(Conv2D):
         to do here is multiply the mask with the input X, before we apply the
         convolutions. For the mask itself, we apply convolutions with all weights
         set to 1.
-        Subsequently, we set all mask values >0 to 1, and otherwise 0
+        Subsequently, we clip mask values to between 0 and 1
         ''' 
-        
+
         # Both image and mask must be supplied
         if type(inputs) is not list or len(inputs) != 2:
             raise Exception('PartialConvolution2D must be called on a list of two tensors [img, mask]. Instead got: ' + str(inputs))
@@ -95,11 +95,8 @@ class PConv2D(Conv2D):
             padding='valid',
             data_format=self.data_format,
             dilation_rate=self.dilation_rate
-        )
-        
-        # Where something happened, set 1, otherwise 0        
-        mask_output = K.cast(K.greater(mask_output, 0), 'float32')
-        
+        # Clip output to be between 0 and 1
+        mask_output = K.clip(mask_output, 0, 1)
         # Apply bias only to the image (if chosen to do so)
         if self.use_bias:
             img_output = K.bias_add(
