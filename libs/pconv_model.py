@@ -16,14 +16,24 @@ class PConvUnet(object):
 
     def __init__(self, img_rows=512, img_cols=512, weight_filepath=None, vgg_weights="imagenet", inference_only=False):
         """Create the PConvUnet. If variable image size, set img_rows and img_cols to None"""
+    def __init__(self, img_rows=512, img_cols=512, vgg_weights="imagenet", inference_only=False, net_name='default'):
+        """Create the PConvUnet. If variable image size, set img_rows and img_cols to None
+        
+        Args:
+            img_rows (int): image height.
+            img_cols (int): image width.
+            vgg_weights (str): which weights to pass to the vgg network.
+            inference_only (bool): initialize BN layers for inference.
+            net_name (str): Name of this network (used in logging).
+        """
         
         # Settings
-        self.weight_filepath = weight_filepath
         self.img_rows = img_rows
         self.img_cols = img_cols
         self.img_overlap = 30
         self.inference_only = inference_only
-        
+        self.net_name = net_name
+
         # Assertions
         assert self.img_rows >= 256, 'Height must be >256 pixels'
         assert self.img_cols >= 256, 'Width must be >256 pixels'
