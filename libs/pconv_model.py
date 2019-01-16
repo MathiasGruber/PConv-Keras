@@ -6,16 +6,16 @@ from keras.models import Model
 from keras.models import load_model
 from keras.optimizers import Adam
 from keras.layers import Input, Conv2D, UpSampling2D, Dropout, LeakyReLU, BatchNormalization, Activation
+from keras.layers import Input, Conv2D, UpSampling2D, Dropout, LeakyReLU, BatchNormalization, Activation, Lambda
 from keras.layers.merge import Concatenate
 from keras.applications import VGG16
+from keras.applications.vgg16 import preprocess_input
 from keras import backend as K
 from libs.pconv_layer import PConv2D
 
 
 class PConvUnet(object):
 
-    def __init__(self, img_rows=512, img_cols=512, weight_filepath=None, vgg_weights="imagenet", inference_only=False):
-        """Create the PConvUnet. If variable image size, set img_rows and img_cols to None"""
     def __init__(self, img_rows=512, img_cols=512, vgg_weights="imagenet", inference_only=False, net_name='default'):
         """Create the PConvUnet. If variable image size, set img_rows and img_cols to None
         
@@ -59,6 +59,10 @@ class PConvUnet(object):
             
         # Input image to extract features from
         img = Input(shape=(self.img_rows, self.img_cols, 3))
+
+        # We assume that the supplied images have already been scaled to 0..255. Now apply keras VGG16 preprocessing
+        processed = Lambda(lambda x: x * 255, name='rescaling')(img)
+        processed = Lambda(preprocess_input, name='preprocessing')(processed)
         
         # If inference only, just return empty model        
         if self.inference_only:
@@ -78,7 +82,7 @@ class PConvUnet(object):
         vgg.outputs = [vgg.layers[i].output for i in self.vgg_layers]
 
         # Create model and compile
-        model = Model(inputs=img, outputs=vgg(img))
+        model = Model(inputs=img, outputs=vgg(processed))
         model.trainable = False
         model.compile(loss='mse', optimizer='adam')
         
