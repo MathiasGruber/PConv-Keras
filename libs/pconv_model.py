@@ -243,9 +243,20 @@ class PConvUnet(object):
         self.current_epoch = epoch
         self.model.load_weights(filepath)        
 
-    def current_weightfile(self):
-        assert self.weight_filepath != None, 'Must specify location of logs'
-        return self.weight_filepath + "{}_weights_{}.h5".format(self.current_epoch, self.current_timestamp())
+    # def current_weightfile(self):
+        # assert self.weight_filepath != None, 'Must specify location of logs'
+        # return self.weight_filepath + "{}_weights_{}.h5".format(self.current_epoch, self.current_timestamp())
+
+    @staticmethod
+    def PSNR(y_true, y_pred):
+        """
+        PSNR is Peek Signal to Noise Ratio, see https://en.wikipedia.org/wiki/Peak_signal-to-noise_ratio
+        The equation is:
+        PSNR = 20 * log10(MAX_I) - 10 * log10(MSE)
+        
+        Since input is scaled from -1 to 1, MAX_I = 1, and thus 20 * log10(1) = 0. Only the last part of the equation is therefore neccesary.
+        """
+        return -10.0 * K.log(K.mean(K.square(y_pred - y_true))) / K.log(10.0) 
 
     @staticmethod
     def current_timestamp():
