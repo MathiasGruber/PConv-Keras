@@ -255,9 +255,9 @@ class PConvUnet(object):
     def l1(y_true, y_pred):
         """Calculate the L1 loss used in all loss calculations"""
         if K.ndim(y_true) == 4:
-            return K.sum(K.abs(y_pred - y_true), axis=[1,2,3])
+            return K.mean(K.abs(y_pred - y_true), axis=[1,2,3])
         elif K.ndim(y_true) == 3:
-            return K.sum(K.abs(y_pred - y_true), axis=[1,2])
+            return K.mean(K.abs(y_pred - y_true), axis=[1,2])
         else:
             raise NotImplementedError("Calculating L1 loss on 1D tensors? should not occur for this network")
     
