@@ -212,36 +212,19 @@ class PConvUnet(object):
         b = self.l1(P[:,:,1:,:], P[:,:,:-1,:])        
         return a+b
 
-    def fit(self, generator, epochs=10, plot_callback=None, *args, **kwargs):
+    def fit_generator(self, generator, *args, **kwargs):
         """Fit the U-Net to a (images, targets) generator
-        
-        param generator: training generator yielding (maskes_image, original_image) tuples
-        param epochs: number of epochs to train for
-        param plot_callback: callback function taking Unet model as parameter
+
+        Args:
+            generator (generator): generator supplying input image & mask, as well as targets.
+            *args: arguments to be passed to fit_generator
+            **kwargs: keyword arguments to be passed to fit_generator
         """
+        self.model.fit_generator(
+            generator,
+            *args, **kwargs
+        )
         
-        # Loop over epochs
-        for _ in range(epochs):            
-            
-            # Fit the model
-            self.model.fit_generator(
-                generator,
-                epochs=self.current_epoch+1,
-                initial_epoch=self.current_epoch,
-                *args, **kwargs
-            )
-
-            # Update epoch 
-            self.current_epoch += 1
-            
-            # After each epoch predict on test images & show them
-            if plot_callback:
-                plot_callback(self.model)
-
-            # Save logfile
-            if self.weight_filepath:
-                self.save()    
-
     def summary(self):
         """Get summary of the UNet model"""
         print(self.model.summary())
