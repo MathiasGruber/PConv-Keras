@@ -1,21 +1,24 @@
 import os
+import sys
 import numpy as np
 from datetime import datetime
 
+import tensorflow as tf
 from keras.models import Model
 from keras.models import load_model
 from keras.optimizers import Adam
 from keras.layers import Input, Conv2D, UpSampling2D, Dropout, LeakyReLU, BatchNormalization, Activation, Lambda
 from keras.layers.merge import Concatenate
 from keras.applications import VGG16
-from keras.applications.vgg16 import preprocess_input
 from keras import backend as K
+from keras.utils.multi_gpu_utils import multi_gpu_model
+
 from libs.pconv_layer import PConv2D
 
 
 class PConvUnet(object):
 
-    def __init__(self, img_rows=512, img_cols=512, vgg_weights="imagenet", inference_only=False, net_name='default'):
+    def __init__(self, img_rows=512, img_cols=512, vgg_weights="imagenet", inference_only=False, net_name='default', gpus=1, vgg_device=None):
         """Create the PConvUnet. If variable image size, set img_rows and img_cols to None
         
         Args:
@@ -24,6 +27,10 @@ class PConvUnet(object):
             vgg_weights (str): which weights to pass to the vgg network.
             inference_only (bool): initialize BN layers for inference.
             net_name (str): Name of this network (used in logging).
+            gpus (int): How many GPUs to use for training.
+            vgg_device (str): In case of training with multiple GPUs, specify which device to run VGG inference on.
+                e.g. if training on 8 GPUs, vgg inference could be off-loaded exclusively to one GPU, instead of
+                running on one of the GPUs which is also training the UNet.
         """
         
         # Settings
@@ -32,6 +39,12 @@ class PConvUnet(object):
         self.img_overlap = 30
         self.inference_only = inference_only
         self.net_name = net_name
+        self.gpus = gpus
+        self.vgg_device = vgg_device
+
+        # Scaling for VGG input
+        self.mean = [0.485, 0.456, 0.406]
+        self.std = [0.229, 0.224, 0.225]
 
         # Assertions
         assert self.img_rows >= 256, 'Height must be >256 pixels'
@@ -42,12 +55,23 @@ class PConvUnet(object):
         
         # VGG layers to extract features from (first maxpooling layers, see pp. 7 of paper)
         self.vgg_layers = [3, 6, 10]
-        
-        # Get the vgg16 model for perceptual loss
-        self.vgg = self.build_vgg(vgg_weights)
+
+        # Instantiate the vgg network
+        if self.vgg_device:
+            with tf.device(self.vgg_device):
+                self.vgg = self.build_vgg(vgg_weights)
+        else:
+            self.vgg = self.build_vgg(vgg_weights)
         
         # Create UNet-like model
-        self.model = self.build_pconv_unet()
+        if self.gpus <= 1:
+            self.model, inputs_mask = self.build_pconv_unet()
+            self.compile_pconv_unet(self.model, inputs_mask)            
+        else:
+            with tf.device("/cpu:0"):
+                self.model, inputs_mask = self.build_pconv_unet()
+            self.model = multi_gpu_model(self.model, gpus=self.gpus)
+            self.compile_pconv_unet(self.model, inputs_mask)
         
     def build_vgg(self, weights="imagenet"):
         """
@@ -59,9 +83,8 @@ class PConvUnet(object):
         # Input image to extract features from
         img = Input(shape=(self.img_rows, self.img_cols, 3))
 
-        # We assume that the supplied images have already been scaled to 0..255. Now apply keras VGG16 preprocessing
-        processed = Lambda(lambda x: x * 255, name='rescaling')(img)
-        processed = Lambda(preprocess_input, name='preprocessing')(processed)
+        # Mean center and rescale by variance as in PyTorch
+        processed = Lambda(lambda x: (x-self.mean) / self.std)(img)
         
         # If inference only, just return empty model        
         if self.inference_only:
@@ -75,19 +98,19 @@ class PConvUnet(object):
             vgg = VGG16(weights=weights, include_top=False)
         else:
             vgg = VGG16(weights=None, include_top=False)
-            vgg.load_weights(weights)
+            vgg.load_weights(weights, by_name=True)
 
         # Output the first three pooling layers
-        vgg.outputs = [vgg.layers[i].output for i in self.vgg_layers]
-
+        vgg.outputs = [vgg.layers[i].output for i in self.vgg_layers]        
+        
         # Create model and compile
         model = Model(inputs=img, outputs=vgg(processed))
         model.trainable = False
         model.compile(loss='mse', optimizer='adam')
-        
+
         return model
         
-    def build_pconv_unet(self, train_bn=True, lr=0.0002):      
+    def build_pconv_unet(self, train_bn=True):      
 
         # INPUTS
         inputs_img = Input((self.img_rows, self.img_cols, 3), name='inputs_img')
@@ -137,29 +160,35 @@ class PConvUnet(object):
         # Setup the model inputs / outputs
         model = Model(inputs=[inputs_img, inputs_mask], outputs=outputs)
 
-        # Compile the model
+        return model, inputs_mask    
+
+    def compile_pconv_unet(self, model, inputs_mask, lr=0.0002):
         model.compile(
             optimizer = Adam(lr=lr),
             loss=self.loss_total(inputs_mask),
             metrics=[self.PSNR]
         )
 
-        return model
-    
     def loss_total(self, mask):
         """
         Creates a loss function which sums all the loss components 
         and multiplies by their weights. See paper eq. 7.
         """
         def loss(y_true, y_pred):
-            
+
             # Compute predicted image with non-hole pixels set to ground truth
             y_comp = mask * y_true + (1-mask) * y_pred
-            
-            # Compute the vgg features
-            vgg_out = self.vgg(y_pred)            
-            vgg_gt = self.vgg(y_true)
-            vgg_comp = self.vgg(y_comp)
+
+            # Compute the vgg features. 
+            if self.vgg_device:
+                with tf.device(self.vgg_device):
+                    vgg_out = self.vgg(y_pred)
+                    vgg_gt = self.vgg(y_true)
+                    vgg_comp = self.vgg(y_comp)
+            else:
+                vgg_out = self.vgg(y_pred)
+                vgg_gt = self.vgg(y_true)
+                vgg_comp = self.vgg(y_comp)
             
             # Compute loss components
             l1 = self.loss_valid(mask, y_true, y_pred)
@@ -168,12 +197,12 @@ class PConvUnet(object):
             l4 = self.loss_style(vgg_out, vgg_gt)
             l5 = self.loss_style(vgg_comp, vgg_gt)
             l6 = self.loss_tv(mask, y_comp)
-            
+
             # Return loss function
             return l1 + 6*l2 + 0.05*l3 + 120*(l4+l5) + 0.1*l6
 
         return loss
-    
+
     def loss_hole(self, mask, y_true, y_pred):
         """Pixel L1 loss within the hole / mask"""
         return self.l1((1-mask) * y_true, (1-mask) * y_pred)
@@ -229,23 +258,17 @@ class PConvUnet(object):
         """Get summary of the UNet model"""
         print(self.model.summary())
 
-    def save(self):        
-        self.model.save_weights(self.current_weightfile())
-
     def load(self, filepath, train_bn=True, lr=0.0002):
 
         # Create UNet-like model
-        self.model = self.build_pconv_unet(train_bn, lr)
+        self.model, inputs_mask = self.build_pconv_unet(train_bn)
+        self.compile_pconv_unet(self.model, inputs_mask, lr) 
 
         # Load weights into model
-        epoch = int(os.path.basename(filepath).split("_")[0])
-        assert epoch > 0, "Could not parse weight file. Should start with 'X_', with X being the epoch"
+        epoch = int(os.path.basename(filepath).split('.')[1].split('-')[0])
+        assert epoch > 0, "Could not parse weight file. Should include the epoch"
         self.current_epoch = epoch
         self.model.load_weights(filepath)        
-
-    # def current_weightfile(self):
-        # assert self.weight_filepath != None, 'Must specify location of logs'
-        # return self.weight_filepath + "{}_weights_{}.h5".format(self.current_epoch, self.current_timestamp())
 
     @staticmethod
     def PSNR(y_true, y_pred):
@@ -254,9 +277,11 @@ class PConvUnet(object):
         The equation is:
         PSNR = 20 * log10(MAX_I) - 10 * log10(MSE)
         
-        Since input is scaled from -1 to 1, MAX_I = 1, and thus 20 * log10(1) = 0. Only the last part of the equation is therefore neccesary.
-        """
-        return -10.0 * K.log(K.mean(K.square(y_pred - y_true))) / K.log(10.0) 
+        Our input is scaled with be within the range -2.11 to 2.64 (imagenet value scaling). We use the difference between these
+        two values (4.75) as MAX_I        
+        """        
+        #return 20 * K.log(4.75) / K.log(10.0) - 10.0 * K.log(K.mean(K.square(y_pred - y_true))) / K.log(10.0) 
+        return - 10.0 * K.log(K.mean(K.square(y_pred - y_true))) / K.log(10.0) 
 
     @staticmethod
     def current_timestamp():
@@ -299,128 +324,3 @@ class PConvUnet(object):
     def predict(self, sample, **kwargs):
         """Run prediction using this model"""
         return self.model.predict(sample, **kwargs)
-    
-    def scan_predict(self, sample, **kwargs):
-        """Run prediction on arbitrary image sizes"""
-        
-        # Only run on a single image at a time
-        img = sample[0]
-        mask = sample[1]
-        assert len(img.shape) == 3, "Image dimension expected to be (H, W, C)"
-        assert len(mask.shape) == 3, "Image dimension expected to be (H, W, C)"
-        
-        # Chunk up, run prediction, and reconstruct
-        chunked_images = self.dimension_preprocess(img)
-        chunked_masks = self.dimension_preprocess(mask)
-        pred_imgs = self.predict([chunked_images, chunked_masks], **kwargs)
-        reconstructed_image = self.dimension_postprocess(pred_imgs, img)
-        
-        # Return single reconstructed image
-        return reconstructed_image    
-    
-    def perform_chunking(self, img_size, chunk_size):
-        """
-        Given an image dimension img_size, return list of (start, stop) 
-        tuples to perform chunking of chunk_size
-        """
-        chunks, i = [], 0
-        while True:
-            chunks.append((i*(chunk_size - self.img_overlap/2), i*(chunk_size - self.img_overlap/2)+chunk_size))
-            i+=1
-            if chunks[-1][1] > img_size:
-                break
-        n_count = len(chunks)        
-        chunks[-1] = tuple(x - (n_count*chunk_size - img_size - (n_count-1)*self.img_overlap/2) for x in chunks[-1])
-        chunks = [(int(x), int(y)) for x, y in chunks]
-        return chunks
-    
-    def get_chunks(self, img):
-        """Get width and height lists of (start, stop) tuples for chunking of img"""
-        x_chunks, y_chunks = [(0, 512)], [(0, 512)]        
-        if img.shape[0] > self.img_rows:
-            x_chunks = self.perform_chunking(img.shape[0], self.img_rows)
-        if img.shape[1] > self.img_cols:
-            y_chunks = self.perform_chunking(img.shape[1], self.img_cols)
-        return x_chunks, y_chunks    
-    
-    def dimension_preprocess(self, img):
-        """
-        In case of prediction on image of different size than 512x512,
-        this function is used to add padding and chunk up the image into pieces
-        of 512x512, which can then later be reconstructed into the original image
-        using the dimension_postprocess() function.
-        """
-
-        # Assert single image input
-        assert len(img.shape) == 3, "Image dimension expected to be (H, W, C)"
-
-        # Check if height is too small
-        if img.shape[0] < self.img_rows:
-            padding = np.ones((self.img_rows - img.shape[0], img.shape[1], img.shape[2]))
-            img = np.concatenate((img, padding), axis=0)
-
-        # Check if width is too small
-        if img.shape[1] < self.img_cols:
-            padding = np.ones((img.shape[0], self.img_cols - img.shape[1], img.shape[2]))
-            img = np.concatenate((img, padding), axis=1)
-
-        # Get chunking of the image
-        x_chunks, y_chunks = self.get_chunks(img)
-
-        # Chunk up the image
-        images = []
-        for x in x_chunks:
-            for y in y_chunks:
-                images.append(
-                    img[x[0]:x[1], y[0]:y[1], :]
-                )
-        images = np.array(images)        
-        return images
-
-    def dimension_postprocess(self, chunked_images, original_image):
-        """
-        In case of prediction on image of different size than 512x512,
-        the dimension_preprocess  function is used to add padding and chunk 
-        up the image into pieces of 512x512, and this function is used to 
-        reconstruct these pieces into the original image.
-        """
-
-        # Assert input dimensions
-        assert len(original_image.shape) == 3, "Image dimension expected to be (H, W, C)"
-        assert len(chunked_images.shape) == 4, "Chunked images dimension expected to be (B, H, W, C)"
-
-        # Check if height is too small
-        if original_image.shape[0] < self.img_rows:
-            new_images = []
-            for img in chunked_images:
-                new_images.append(img[0:original_image.shape[0], :, :])
-            chunked_images = np.array(new_images)
-            
-        # Check if width is too small
-        if original_image.shape[1] < self.img_cols:
-            new_images = []
-            for img in chunked_images:
-                new_images.append(img[:, 0:original_image.shape[1], :])
-            chunked_images = np.array(new_images)
-            
-        # Put reconstruction into this array
-        reconstruction = np.zeros(original_image.shape)
-            
-        # Get the chunks for this image    
-        x_chunks, y_chunks = self.get_chunks(original_image)
-        i = 0
-        for x in x_chunks:
-            for y in y_chunks:
-                
-                prior_fill = reconstruction != 0
-                
-                chunk = np.zeros(original_image.shape)                
-                chunk[x[0]:x[1], y[0]:y[1], :] += chunked_images[i]
-                chunk_fill = chunk != 0
-                
-                reconstruction += chunk
-                reconstruction[prior_fill & chunk_fill] = reconstruction[prior_fill & chunk_fill] / 2
-
-                i += 1
-        
-        return reconstruction
