@@ -23,15 +23,14 @@ from libs.util import MaskGenerator
 
 
 # Sample call
-"""
-
+r"""
 # Train on CelebaHQ
-python main.py --name CelebHQ --train C:\Documents\Kaggle\celebaHQ-512\ --validation C:\Documents\Kaggle\celebaHQ-512\ --test C:\Documents\Kaggle\celebaHQ-512\
-
+python main.py --name CelebHQ --train C:\Documents\Kaggle\celebaHQ-512\train\ --validation C:\Documents\Kaggle\celebaHQ-512\val\ --test C:\Documents\Kaggle\celebaHQ-512\test\ "
 """
+
 
 def parse_args():
-    parser = ArgumentParser(description='Training script for SRGAN')
+    parser = ArgumentParser(description='Training script for PConv inpainting')
 
     parser.add_argument(
         '-stage', '--stage',
@@ -96,7 +95,7 @@ def parse_args():
 
     parser.add_argument(
         '-vgg_path', '--vgg_path',
-        type=str, default='./data/logs/pytorch_vgg16.h5',
+        type=str, default='./data/logs/pytorch_to_keras_vgg16.h5',
         help='VGG16 weights trained on PyTorch with pixel scaling 1/255.'
     )
 
@@ -212,9 +211,9 @@ if __name__ == '__main__':
     
     # Loading of checkpoint
     if args.checkpoint:
-        if args.state == 'train':
+        if args.stage == 'train':
             model.load(args.checkpoint)
-        elif args.state == 'finetune':
+        elif args.stage == 'finetune':
             model.load(args.checkpoint, train_bn=False, lr=0.00005)
 
     # Fit model

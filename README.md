@@ -16,6 +16,13 @@ Step 2: Implementing and testing the implementation of the `PConv2D` layer<br />
 Step 3: Implementing and testing the UNet architecture with `PConv2D` layers<br />
 Step 4: Training & testing the final architecture on ImageNet
 
+# Pre-trained weights
+I've ported the VGG16 weights from PyTorch to keras; this means the `1/255.` pixel scaling can be used for the VGG16 network similarly to PyTorch. 
+* [Ported VGG 16 weights](https://drive.google.com/open?id=1HOzmKQFljTdKWftEP-kWD7p2paEaeHM0)
+* [PConv on Imagenet](https://drive.google.com/open?id=1OdbuNJj4gV9KUoknQG063jJrJ1srhBvU)
+* PConv on Places2 [needs training]
+* PConv on CelebaHQ [needs training]
+
 # Implementation details
 Details of the implementation are in the [paper itself](https://arxiv.org/abs/1804.07723), however I'll try to summarize some details here.
 
