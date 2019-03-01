@@ -26,10 +26,11 @@ class MaskGenerator():
         self.filepath = filepath
 
         # If filepath supplied, load the list of masks within the directory
+        self.mask_files = []
         if self.filepath:
             filenames = [f for f in os.listdir(self.filepath)]
             self.mask_files = [f for f in filenames if any(filetype in f.lower() for filetype in ['.jpeg', '.png', '.jpg'])]
-            print(">> Found {} masks in {}".format(len(self.mask_files), self.filepath))
+            print(">> Found {} masks in {}".format(len(self.mask_files), self.filepath))        
 
         # Seed for reproducibility
         if rand_seed:
@@ -71,11 +72,8 @@ class MaskGenerator():
     def _load_mask(self, rotation=True, dilation=True, cropping=True):
         """Loads a mask from disk, and optionally augments it"""
 
-        # Get idx of mask to load
-        idx = randint(0, len(self.mask_files))
-
         # Read image
-        mask = cv2.imread(os.path.join(self.filepath, self.mask_files[idx]))
+        mask = cv2.imread(os.path.join(self.filepath, np.random.choice(self.mask_files, 1, replace=False)[0]))
         
         # Random rotation
         if rotation:
@@ -101,7 +99,7 @@ class MaskGenerator():
         """Retrieve a random mask"""
         if random_seed:
             seed(random_seed)
-        if self.filepath:
+        if self.filepath and len(self.mask_files) > 0:
             return self._load_mask()
         else:
             return self._generate_mask()
