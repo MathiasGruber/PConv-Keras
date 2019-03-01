@@ -1,5 +1,6 @@
 # Repo-specific
 data/masks/*
+.vscode*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
