@@ -107,7 +107,5 @@ venv.bak/
 # mypy
 .mypy_cache/
 
-test_samples*
-logs*
 backup*
 pexels_royalty_free_photos*
