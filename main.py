@@ -25,7 +25,7 @@ from libs.util import MaskGenerator
 # Sample call
 r"""
 # Train on CelebaHQ
-python main.py --name CelebHQ --train C:\Documents\Kaggle\celebaHQ-512\train\ --validation C:\Documents\Kaggle\celebaHQ-512\val\ --test C:\Documents\Kaggle\celebaHQ-512\test\ "
+python main.py --name CelebHQ --train C:\Documents\Kaggle\celebaHQ-512\train\ --validation C:\Documents\Kaggle\celebaHQ-512\val\ --test C:\Documents\Kaggle\celebaHQ-512\test\ --checkpoint "C:\Users\Mathias Felix Gruber\Documents\GitHub\PConv-Keras\data\logs\imagenet_phase1_paperMasks\weights.35-0.70.h5"
 """
 
 
@@ -61,12 +61,6 @@ def parse_args():
         '-name', '--name',
         type=str, default='myDataset',
         help='Dataset name, e.g. \'imagenet\''
-    )
-     
-    parser.add_argument(
-        '-workers', '--workers',
-        type=int, default=4,
-        help='How many workers to user for pre-processing'
     )
         
     parser.add_argument(
