@@ -37,6 +37,8 @@ python main.py \
     --vgg_path './data/logs/pytorch_to_keras_vgg16.h5'
 ```
 
+**Note:** Your train/test directory should have a structure similar to this `train_test/<class_name>/<images>`. For Validation, `validation/val/<images>`.
+
 # Implementation details
 Details of the implementation are in the [paper itself](https://arxiv.org/abs/1804.07723), however I'll try to summarize some details here.
 
