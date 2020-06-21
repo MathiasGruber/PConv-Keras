@@ -7,7 +7,7 @@ import cv2
 
 class MaskGenerator():
 
-    def __init__(self, height, width, channels=3, rand_seed=None, filepath=None):
+    def __init__(self, height, width, channels=3, rand_seed=None, filepath=None, damage_factor=20):
         """Convenience functions for generating masks to be used for inpainting training
         
         Arguments:
@@ -18,12 +18,14 @@ class MaskGenerator():
             channels {int} -- Channels to output (default: {3})
             rand_seed {[type]} -- Random seed (default: {None})
             filepath {[type]} -- Load masks from filepath. If None, generate masks with OpenCV (default: {None})
+            damage_factor {int} -- The maximum number of objects sampled for the mask per geometric figure
         """
 
         self.height = height
         self.width = width
         self.channels = channels
         self.filepath = filepath
+        self.damage_factor = damage_factor
 
         # If filepath supplied, load the list of masks within the directory
         self.mask_files = []
@@ -47,20 +49,20 @@ class MaskGenerator():
             raise Exception("Width and Height of mask must be at least 64!")
         
         # Draw random lines
-        for _ in range(randint(1, 20)):
+        for _ in range(randint(1, self.damage_factor)):
             x1, x2 = randint(1, self.width), randint(1, self.width)
             y1, y2 = randint(1, self.height), randint(1, self.height)
             thickness = randint(3, size)
             cv2.line(img,(x1,y1),(x2,y2),(1,1,1),thickness)
             
         # Draw random circles
-        for _ in range(randint(1, 20)):
+        for _ in range(randint(1, self.damage_factor)):
             x1, y1 = randint(1, self.width), randint(1, self.height)
             radius = randint(3, size)
             cv2.circle(img,(x1,y1),radius,(1,1,1), -1)
             
         # Draw random ellipses
-        for _ in range(randint(1, 20)):
+        for _ in range(randint(1, self.damage_factor)):
             x1, y1 = randint(1, self.width), randint(1, self.height)
             s1, s2 = randint(1, self.width), randint(1, self.height)
             a1, a2, a3 = randint(3, 180), randint(3, 180), randint(3, 180)
