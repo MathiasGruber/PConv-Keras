@@ -42,7 +42,7 @@ class PConv2D(Conv2D):
         )
 
         # Window size - used for normalization
-        self.window_size = self.kernel_size[0] * self.kernel_size[1]
+        self.window_size = self.kernel_size[0] * self.kernel_size[1] * self.input_dim
         
         if self.use_bias:
             self.bias = self.add_weight(shape=(self.filters,),
