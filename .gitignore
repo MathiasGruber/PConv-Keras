@@ -1,6 +1,9 @@
 # Repo-specific
 data/masks/*
 .vscode*
+.DS_Store
+notebooks/co-mod-gan
+.secrets
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
