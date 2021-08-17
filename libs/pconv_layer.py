@@ -33,7 +33,7 @@ class PConv2D(Conv2D):
                                       regularizer=self.kernel_regularizer,
                                       constraint=self.kernel_constraint)
         # Mask kernel
-        self.kernel_mask = K.ones(shape=self.kernel_size + (self.input_dim, self.filters))
+        self.kernel_mask = K.constant(1, shape=self.kernel_size + (self.input_dim, self.filters))
 
         # Calculate padding size to achieve zero-padding
         self.pconv_padding = (
